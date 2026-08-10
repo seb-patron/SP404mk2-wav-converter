@@ -1,95 +1,104 @@
-# SP404 MK2 WAV File Converter
+# SP-404MKII WAV File Converter
 
-This script helps convert WAV audio files to be compatible with the Roland SP404 MK2 sampler. It creates a complete collection of SP404 MK2-compatible files in a single location while preserving your original files and folder structure.
+This small Bash utility creates an SD-card-ready copy of a WAV sample library for the Roland SP-404MKII. It preserves the original folder structure and never modifies the source files.
 
-> 📝 **For a detailed writeup about why I created this tool and how it works, check out my [blog post on the SP404 MK2 WAV Converter](https://sebpatron.com/sp404mk2-wav-converter/).**
+> For the story behind the tool, see the [SP-404MKII WAV converter blog post](https://sebpatron.com/sp404mk2-wav-converter/).
 
-## What This Script Does
+## What it does
 
-- Presents a folder selection dialog to choose your samples directory
-- Scans for WAV files in the selected folder and all subfolders
-- Checks each file for compatibility with the SP404 MK2
-- Places ALL files in a "converted" subdirectory:
-  - Compatible files are simply copied as-is
-  - Incompatible files are converted to a compatible format
-- Preserves your original folder structure in the "converted" directory
-- Preserves your original files completely untouched
-- Intelligently skips files that have already been processed in previous runs
+- Recursively finds `.wav` files (case-insensitive) in the selected folder
+- Copies compatible files without transcoding them
+- Converts incompatible files to 16-bit, 44.1 kHz linear PCM WAV
+- Mirrors the source hierarchy inside a `converted` subdirectory
+- Skips a source path when its matching output file already exists
+- Handles spaces and other valid filename characters
+- Reports converted, copied, skipped, and failed file counts
 
-## SP404 MK2 Compatibility Requirements
+## Compatibility target
 
-The Roland SP404 MK2 has specific requirements for WAV files:
+Roland distinguishes between importing from an SD card and importing through the SP-404MKII app:
 
-- **Bit Depth**: Must be 16-bit or 24-bit
-- **Sample Rates**: Must be one of the following:
-  - 16 kHz
-  - 22.05 kHz
-  - 32 kHz
-  - 44.1 kHz (recommended)
-  - 48 kHz
-  - 88.2 kHz
-  - 96 kHz
-  - 176.4 kHz
-  - 192 kHz
+- **SD card:** 16-bit linear WAV/AIFF and MP3
+- **SP-404MKII app:** WAV, AIFF, MP3, FLAC, and M4A (ALAC/AAC), with 16- and 24-bit support for applicable lossless formats
 
-Files that don't meet these requirements will not play correctly on the SP404 MK2 or may not be recognized at all.
+See Roland's [current import-format documentation](https://support.roland.com/hc/en-us/articles/4408190553883-SP-404MK2-What-audio-file-formats-can-be-imported-into-the-SP-404MK2) and [SP-404MKII app guide](https://static.roland.com/assets/media/pdf/SP-404MK2_app_eng04_W.pdf).
 
-## Safe for Your Original Files
+This utility intentionally targets the stricter SD-card workflow. A file is copied as compatible only when FFprobe identifies it as 16-bit linear PCM at one of Roland's supported sample rates: 16, 22.05, 32, 44.1, 48, 88.2, 96, 176.4, or 192 kHz. Other WAV files are converted to 16-bit, 44.1 kHz linear PCM. That remains a conservative, widely compatible output; the sampler converts imported audio to its internal 48 kHz/16-bit format.
 
-**This script never modifies your original files.** Instead, it creates a "converted" subdirectory that contains a complete mirror of your sample library with all files guaranteed to be compatible with the SP404 MK2. This makes it easy to copy your entire library to your sampler while ensuring your original samples remain untouched.
+## Requirements
 
-## Prerequisites
+- macOS when using the folder picker; other platforms can pass a directory argument
+- [FFmpeg](https://ffmpeg.org/), including `ffprobe`
 
-Before using this script, you need to install:
+With [Homebrew](https://brew.sh/) installed:
 
-1. **Homebrew** - The package manager for macOS
-   ```
-   /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-   ```
+```bash
+brew install ffmpeg
+```
 
-2. **FFmpeg** - The audio/video conversion tool
-   ```
-   brew install ffmpeg
-   ```
+## Usage
 
-## How to Use
+Make the script executable:
 
-1. Download the `convert-wavs.sh` script
-2. Make it executable:
-   ```
-   chmod +x convert-wavs.sh
-   ```
-3. Run the script:
-   ```
-   ./convert-wavs.sh
-   ```
-4. When prompted, select the folder containing your WAV samples
-5. The script will process all WAV files
-6. Find your complete set of SP404 MK2-compatible files in the "converted" subdirectory
+```bash
+chmod +x convert-wavs.sh
+```
 
-## How It Works
+Open the macOS folder picker:
 
-1. **Folder Selection**: Uses AppleScript to show a native macOS folder selection dialog
-2. **Smart Processing**: For each WAV file, the script:
-   - Checks if the file has already been processed in a previous run (and skips if it has)
-   - Uses `ffprobe` to analyze the audio format
-   - Determines if the file is already compatible with the SP404 MK2
-3. **File Handling**:
-   - Compatible files are copied directly to the "converted" directory with no changes
-   - Incompatible files are converted to 16-bit, 44.1kHz PCM WAV format
-   - All files maintain their original paths and filenames within the converted directory
-4. **Detailed Reporting**: After processing, the script provides:
-   - Count of incompatible files converted in the current run
-   - Count of compatible files copied in the current run
-   - Count of files that were already processed in previous runs
-   - Location of all processed files
+```bash
+./convert-wavs.sh
+```
 
-## Troubleshooting
+Or pass the samples directory directly:
 
-- **Permission Denied**: Make sure the script is executable (`chmod +x convert-wavs.sh`)
-- **Command Not Found**: Ensure FFmpeg is installed (`brew install ffmpeg`)
-- **No Files Processed**: Check that your directory contains WAV files
+```bash
+./convert-wavs.sh "/path/to/samples"
+```
+
+The script creates `/path/to/samples/converted` and places every successfully processed WAV there: compatible files are copied and incompatible files are converted. Existing output files are left alone on later runs.
+
+## Testing
+
+Run the integration test:
+
+```bash
+./tests/test.sh
+```
+
+The test creates short synthetic audio fixtures with FFmpeg, so the repository does not need to include copyrighted samples or opaque binary test data. It covers:
+
+- compatible 44.1 and 48 kHz 16-bit PCM files that should be copied
+- 24-bit PCM, 32-bit integer PCM, and 32-bit float files that should be converted
+- nested directories, spaces, brackets, an uppercase `.WAV` extension, and a newline in a filename
+- output metadata, unchanged source files, reruns, and invalid-input failure handling
+
+### Safely try your own samples
+
+The converter never overwrites source WAVs, but testing a duplicate first makes it easy to inspect or discard the whole result:
+
+```bash
+cp -R "/path/to/my samples" "/path/to/my samples test"
+./convert-wavs.sh "/path/to/my samples test"
+```
+
+Inspect an output file with FFprobe:
+
+```bash
+ffprobe -v error -select_streams a:0 \
+  -show_entries stream=codec_name,sample_rate,bits_per_sample \
+  -of default=noprint_wrappers=1 \
+  "/path/to/my samples test/converted/example.wav"
+```
+
+Converted files should report `codec_name=pcm_s16le`, `sample_rate=44100`, and `bits_per_sample=16`. Compatible copied files keep their supported original sample rate.
+
+## Limitations
+
+- Existing outputs are skipped by path. If a source file changes, remove its corresponding file from `converted` before rerunning.
+- Only WAV inputs are processed; the SP-404MKII supports additional import formats.
+- Extremely short samples (under 100 ms) and some filenames may still be rejected by the sampler even when their audio encoding is supported.
 
 ## License
 
-This script is provided as-is under the MIT License. Feel free to modify and distribute as needed. 
+MIT
