@@ -12,8 +12,7 @@ fail() {
 
 for dependency in ffmpeg ffprobe; do
     if ! command -v "$dependency" >/dev/null 2>&1; then
-        echo "SKIP: $dependency is not installed."
-        exit 0
+        fail "$dependency is required to run the integration test"
     fi
 done
 

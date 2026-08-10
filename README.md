@@ -60,13 +60,38 @@ The script creates `/path/to/samples/converted` and places every successfully pr
 
 ## Testing
 
-Run the lightweight integration test:
+Run the integration test:
 
 ```bash
 ./tests/test.sh
 ```
 
-The test generates representative WAV files with FFmpeg, checks conversion metadata and preserved paths, verifies that originals are unchanged, and exercises rerun and failure accounting.
+The test creates short synthetic audio fixtures with FFmpeg, so the repository does not need to include copyrighted samples or opaque binary test data. It covers:
+
+- compatible 44.1 and 48 kHz 16-bit PCM files that should be copied
+- 24-bit PCM, 32-bit integer PCM, and 32-bit float files that should be converted
+- nested directories, spaces, brackets, an uppercase `.WAV` extension, and a newline in a filename
+- output metadata, unchanged source files, reruns, and invalid-input failure handling
+
+### Safely try your own samples
+
+The converter never overwrites source WAVs, but testing a duplicate first makes it easy to inspect or discard the whole result:
+
+```bash
+cp -R "/path/to/my samples" "/path/to/my samples test"
+./convert-wavs.sh "/path/to/my samples test"
+```
+
+Inspect an output file with FFprobe:
+
+```bash
+ffprobe -v error -select_streams a:0 \
+  -show_entries stream=codec_name,sample_rate,bits_per_sample \
+  -of default=noprint_wrappers=1 \
+  "/path/to/my samples test/converted/example.wav"
+```
+
+Converted files should report `codec_name=pcm_s16le`, `sample_rate=44100`, and `bits_per_sample=16`. Compatible copied files keep their supported original sample rate.
 
 ## Limitations
 
